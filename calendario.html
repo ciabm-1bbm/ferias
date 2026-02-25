@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendário de Férias</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
+    <style>
+        .calendario {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-top: 20px;
+        }
+        .dia {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+            background-color: #f9f9f9;
+        }
+        .dia.ferias {
+            background-color: #a3d8ff;
+        }
+        .mes {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Calendário de Férias</h1>
+            <button id="logoutBtn">Sair</button>
+        </header>
+        <nav>
+            <a href="dashboard.html">Voltar</a>
+        </nav>
+
+        <label for="mesSelect">Mês:</label>
+        <select id="mesSelect">
+            <option value="1">Janeiro</option>
+            <option value="2">Fevereiro</option>
+            <option value="3">Março</option>
+            <option value="4">Abril</option>
+            <option value="5">Maio</option>
+            <option value="6">Junho</option>
+            <option value="7">Julho</option>
+            <option value="8">Agosto</option>
+            <option value="9">Setembro</option>
+            <option value="10">Outubro</option>
+            <option value="11">Novembro</option>
+            <option value="12">Dezembro</option>
+        </select>
+
+        <label for="anoInput">Ano:</label>
+        <input type="number" id="anoInput" value="2026">
+
+        <button id="carregar">Carregar</button>
+
+        <div id="calendarioContainer"></div>
+    </div>
+
+    <script>
+        (async () => {
+            await app.verificarLogin();
+            document.getElementById('logoutBtn').addEventListener('click', app.logout);
+
+            async function carregarCalendario() {
+                const mes = document.getElementById('mesSelect').value;
+                const ano = document.getElementById('anoInput').value;
+
+                // Buscar todas as férias aprovadas no mês/ano
+                const inicioMes = `${ano}-${mes.padStart(2, '0')}-01`;
+                const ultimoDia = new Date(ano, mes, 0).getDate();
+                const fimMes = `${ano}-${mes.padStart(2, '0')}-${ultimoDia}`;
+
+                const { data: ferias, error } = await app.supabase
+                    .from('solicitacoes_ferias')
+                    .select(`
+                        data_inicio,
+                        data_fim,
+                        usuarios (nome_completo, id_pelotao, pelotoes(nome))
+                    `)
+                    .eq('status', 'aprovado')
+                    .or(`data_inicio.lte.${fimMes},data_fim.gte.${inicioMes}`); // simplificado: qualquer férias que intersecte o mês
+
+                if (error) {
+                    alert('Erro ao buscar: ' + error.message);
+                    return;
+                }
+
+                // Mapear dias com férias
+                const diasComFerias = {};
+                ferias.forEach(f => {
+                    const inicio = new Date(f.data_inicio);
+                    const fim = new Date(f.data_fim);
+                    for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+                        if (d.getFullYear() == ano && d.getMonth() == mes - 1) {
+                            const dia = d.getDate();
+                            if (!diasComFerias[dia]) diasComFerias[dia] = [];
+                            diasComFerias[dia].push(f.usuarios.nome_completo);
+                        }
+                    }
+                });
+
+                // Gerar HTML do calendário
+                const container = document.getElementById('calendarioContainer');
+                let html = `<div class="mes"><h3>${document.getElementById('mesSelect').selectedOptions[0].text} ${ano}</h3><div class="calendario">`;
+
+                // Dias da semana
+                const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                diasSemana.forEach(d => html += `<div class="dia semana">${d}</div>`);
+
+                // Preencher dias
+                const primeiroDia = new Date(ano, mes - 1, 1).getDay();
+                for (let i = 0; i < primeiroDia; i++) {
+                    html += `<div class="dia vazio"></div>`;
+                }
+                for (let dia = 1; dia <= ultimoDia; dia++) {
+                    const temFerias = diasComFerias[dia] ? 'ferias' : '';
+                    let conteudo = dia;
+                    if (diasComFerias[dia]) {
+                        conteudo += '<br><small>' + diasComFerias[dia].join('<br>') + '</small>';
+                    }
+                    html += `<div class="dia ${temFerias}">${conteudo}</div>`;
+                }
+                html += '</div></div>';
+                container.innerHTML = html;
+            }
+
+            document.getElementById('carregar').addEventListener('click', carregarCalendario);
+            // Carregar mês atual por padrão
+            const hoje = new Date();
+            document.getElementById('mesSelect').value = hoje.getMonth() + 1;
+            document.getElementById('anoInput').value = hoje.getFullYear();
+            carregarCalendario();
+        })();
+    </script>
+</body>
+</html>

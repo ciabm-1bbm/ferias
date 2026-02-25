@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Gestão</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Administrador</h1>
+            <button id="logoutBtn">Sair</button>
+        </header>
+        <nav>
+            <a href="admin.html">Início</a>
+            <a href="#pelotoes">Pelotões</a>
+            <a href="#usuarios">Usuários</a>
+            <a href="#regras">Regras de Escala</a>
+        </nav>
+
+        <section id="pelotoes">
+            <h2>Gerenciar Pelotões</h2>
+            <form id="formPelotao">
+                <input type="text" id="pelotaoNome" placeholder="Nome do Pelotão" required>
+                <input type="number" id="pelotaoEfetivo" placeholder="Efetivo Total" required>
+                <input type="number" id="pelotaoLimite" placeholder="Limite Simultâneo (número)" required>
+                <button type="submit">Adicionar Pelotão</button>
+            </form>
+            <table id="tabelaPelotoes">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Efetivo</th>
+                        <th>Limite</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+
+        <section id="usuarios">
+            <h2>Gerenciar Usuários</h2>
+            <p><em>Para criar um usuário, primeiro crie a conta no Authentication do Supabase e depois insira o registro aqui com o mesmo UUID.</em></p>
+            <form id="formUsuario">
+                <input type="text" id="userId" placeholder="UUID do Auth" required>
+                <input type="text" id="userNome" placeholder="Nome Completo" required>
+                <input type="text" id="userIdent" placeholder="Identificação Militar" required>
+                <select id="userPerfil">
+                    <option value="militar">Militar</option>
+                    <option value="comandante">Comandante</option>
+                    <option value="admin">Admin</option>
+                </select>
+                <select id="userPelotao">
+                    <option value="">Sem pelotão</option>
+                </select>
+                <input type="date" id="userDataIngresso" required>
+                <button type="submit">Adicionar Usuário</button>
+            </form>
+            <table id="tabelaUsuarios">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Identificação</th>
+                        <th>Perfil</th>
+                        <th>Pelotão</th>
+                        <th>Saldo</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </div>
+
+    <script>
+        (async () => {
+            const user = await app.verificarLogin();
+            if (!user) return;
+
+            const usuario = await app.getUsuario(user.id);
+            if (!usuario || usuario.perfil !== 'admin') {
+                alert('Acesso negado.');
+                app.logout();
+                return;
+            }
+
+            document.getElementById('logoutBtn').addEventListener('click', app.logout);
+
+            // Carregar pelotões para o select
+            async function carregarPelotoesSelect() {
+                const { data: pelotoes } = await app.supabase.from('pelotoes').select('id, nome');
+                const select = document.getElementById('userPelotao');
+                select.innerHTML = '<option value="">Sem pelotão</option>';
+                pelotoes.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.id;
+                    option.text = p.nome;
+                    select.appendChild(option);
+                });
+            }
+            carregarPelotoesSelect();
+
+            // Carregar tabela de pelotões
+            async function carregarPelotoes() {
+                const { data: pelotoes } = await app.supabase.from('pelotoes').select('*');
+                const tbody = document.querySelector('#tabelaPelotoes tbody');
+                tbody.innerHTML = '';
+                pelotoes.forEach(p => {
+                    const row = tbody.insertRow();
+                    row.insertCell().innerText = p.id;
+                    row.insertCell().innerText = p.nome;
+                    row.insertCell().innerText = p.efetivo_total;
+                    row.insertCell().innerText = p.limite_simultaneo;
+                    const acoes = row.insertCell();
+                    acoes.innerHTML = `<button onclick="excluirPelotao(${p.id})">Excluir</button>`;
+                });
+            }
+            carregarPelotoes();
+
+            // Adicionar pelotão
+            document.getElementById('formPelotao').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const nome = document.getElementById('pelotaoNome').value;
+                const efetivo = parseInt(document.getElementById('pelotaoEfetivo').value);
+                const limite = parseInt(document.getElementById('pelotaoLimite').value);
+                const { error } = await app.supabase.from('pelotoes').insert([{ nome, efetivo_total: efetivo, limite_simultaneo: limite }]);
+                if (error) {
+                    alert('Erro: ' + error.message);
+                } else {
+                    alert('Pelotão adicionado!');
+                    carregarPelotoes();
+                    carregarPelotoesSelect();
+                }
+            });
+
+            // Excluir pelotão
+            window.excluirPelotao = async (id) => {
+                if (confirm('Tem certeza?')) {
+                    await app.supabase.from('pelotoes').delete().eq('id', id);
+                    carregarPelotoes();
+                    carregarPelotoesSelect();
+                }
+            };
+
+            // Carregar usuários
+            async function carregarUsuarios() {
+                const { data: usuarios } = await app.supabase
+                    .from('usuarios')
+                    .select('*, pelotoes(nome)');
+                const tbody = document.querySelector('#tabelaUsuarios tbody');
+                tbody.innerHTML = '';
+                usuarios.forEach(u => {
+                    const row = tbody.insertRow();
+                    row.insertCell().innerText = u.nome_completo;
+                    row.insertCell().innerText = u.identificacao_militar;
+                    row.insertCell().innerText = u.perfil;
+                    row.insertCell().innerText = u.pelotoes?.nome || '-';
+                    row.insertCell().innerText = u.saldo_ferias;
+                    const acoes = row.insertCell();
+                    acoes.innerHTML = `<button onclick="excluirUsuario('${u.id}')">Excluir</button>`;
+                });
+            }
+            carregarUsuarios();
+
+            // Adicionar usuário
+            document.getElementById('formUsuario').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('userId').value;
+                const nome = document.getElementById('userNome').value;
+                const ident = document.getElementById('userIdent').value;
+                const perfil = document.getElementById('userPerfil').value;
+                const id_pelotao = document.getElementById('userPelotao').value || null;
+                const data_ingresso = document.getElementById('userDataIngresso').value;
+
+                const { error } = await app.supabase.from('usuarios').insert([{
+                    id, nome_completo: nome, identificacao_militar: ident,
+                    perfil, id_pelotao, data_ingresso, saldo_ferias: 30
+                }]);
+                if (error) {
+                    alert('Erro: ' + error.message);
+                } else {
+                    alert('Usuário adicionado!');
+                    carregarUsuarios();
+                }
+            });
+
+            window.excluirUsuario = async (id) => {
+                if (confirm('Tem certeza?')) {
+                    await app.supabase.from('usuarios').delete().eq('id', id);
+                    carregarUsuarios();
+                }
+            };
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Militar - Controle de Férias</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bem-vindo, <span id="nome"></span></h1>
+            <button id="logoutBtn">Sair</button>
+        </header>
+        <nav>
+            <a href="militar.html">Início</a>
+            <a href="solicitar.html">Solicitar Férias</a>
+            <a href="calendario.html">Calendário</a>
+        </nav>
+
+        <section>
+            <h2>Saldo de Férias: <span id="saldo"></span> dias</h2>
+            <h3>Minhas Solicitações</h3>
+            <table id="minhasSolicitacoes">
+                <thead>
+                    <tr>
+                        <th>Início</th>
+                        <th>Fim</th>
+                        <th>Dias</th>
+                        <th>Status</th>
+                        <th>Justificativa</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </div>
+
+    <script>
+        (async () => {
+            const user = await app.verificarLogin();
+            if (!user) return;
+
+            const usuario = await app.getUsuario(user.id);
+            if (!usuario) {
+                app.logout();
+                return;
+            }
+
+            document.getElementById('nome').innerText = usuario.nome_completo;
+            document.getElementById('saldo').innerText = usuario.saldo_ferias;
+
+            // Carregar solicitações do militar
+            const { data: solicitacoes, error } = await app.supabase
+                .from('solicitacoes_ferias')
+                .select('*')
+                .eq('id_militar', user.id)
+                .order('data_solicitacao', { ascending: false });
+
+            if (error) {
+                alert('Erro ao carregar solicitações: ' + error.message);
+                return;
+            }
+
+            const tbody = document.querySelector('#minhasSolicitacoes tbody');
+            if (solicitacoes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">Nenhuma solicitação encontrada.</td></tr>';
+            } else {
+                solicitacoes.forEach(s => {
+                    const row = tbody.insertRow();
+                    row.insertCell().innerText = s.data_inicio;
+                    row.insertCell().innerText = s.data_fim;
+                    row.insertCell().innerText = s.dias_solicitados;
+                    row.insertCell().innerText = s.status;
+                    row.insertCell().innerText = s.justificativa_resposta || '-';
+                });
+            }
+
+            document.getElementById('logoutBtn').addEventListener('click', app.logout);
+        })();
+    </script>
+</body>
+</html>

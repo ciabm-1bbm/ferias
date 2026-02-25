@@ -3,7 +3,7 @@ const SUPABASE_URL = 'https://afojrvjxcdxanoqcvjgm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_YlCXizvQhRBprjD51ptpbg_asfFayMp';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Função para verificar se o usuário está logado e redirecionar se necessário
+// Função para verificar se o usuário está logado
 async function verificarLogin() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user && !window.location.pathname.endsWith('index.html')) {
@@ -13,7 +13,7 @@ async function verificarLogin() {
     return user;
 }
 
-// Função para buscar dados do usuário na tabela 'usuarios'
+// Função para buscar dados do usuário
 async function getUsuario(userId) {
     const { data, error } = await supabase
         .from('usuarios')
@@ -33,7 +33,7 @@ async function logout() {
     window.location.href = 'index.html';
 }
 
-// Exporta as funções e o cliente supabase para uso nas páginas
+// Disponibiliza globalmente
 window.app = {
     supabase,
     verificarLogin,
